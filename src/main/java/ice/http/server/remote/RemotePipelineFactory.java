@@ -1,0 +1,53 @@
+package ice.http.server.remote;
+
+import ice.http.server.Settings;
+import ice.http.server.handler.HttpTimeoutHandler;
+import ice.http.server.utils.BeanUtils;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
+import org.jboss.netty.handler.codec.http.HttpResponseEncoder;
+import org.jboss.netty.handler.timeout.IdleStateHandler;
+import org.jboss.netty.util.Timer;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+
+public class RemotePipelineFactory implements ChannelPipelineFactory, ApplicationContextAware {
+	private final Timer timer;
+	private final Settings settings;
+	private ApplicationContext applicationContext;
+	private HttpTimeoutHandler httpTimeoutHandler;
+
+	public RemotePipelineFactory(Timer timer, Settings settings) {
+		this.timer = timer;
+		this.settings = settings;
+	}
+
+	@Override
+	public ChannelPipeline getPipeline() throws Exception {
+		RemoteRequestHandler remoteRequestHandler = new RemoteRequestHandler();
+		remoteRequestHandler.setSettings(settings);
+		remoteRequestHandler.setApplicationContext(applicationContext);
+
+		ChannelPipeline pipeline = Channels.pipeline();
+
+		if (settings.getKeepAliveTimeout() > 0) {
+			pipeline.addLast("idle", new IdleStateHandler(timer, 0, 0, settings.getKeepAliveTimeout()));
+			pipeline.addLast("timeout", httpTimeoutHandler);
+		}
+
+		pipeline.addLast("decoder", new HttpRequestDecoder());
+		pipeline.addLast("encoder", new HttpResponseEncoder());
+		pipeline.addLast("handler", remoteRequestHandler);
+
+		return pipeline;
+	}
+
+	@Override
+	public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
+		this.applicationContext = applicationContext;
+		this.httpTimeoutHandler = BeanUtils.getBean(settings, applicationContext, HttpTimeoutHandler.class);
+	}
+}
