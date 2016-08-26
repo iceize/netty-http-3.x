@@ -51,7 +51,7 @@ public class Dispatcher implements SettingsAware, InitializingBean, ApplicationC
 			try {
 				ActionDispatcher actionDispatcher = BeanUtils.createBean(dispatcherClass, settings, applicationContext);
 
-				if (actionDispatcher != null && !dispatchers.containsKey(actionDispatcher.assignableFrom())) {
+				if (actionDispatcher != null) {
 					dispatchers.put(actionDispatcher.assignableFrom(), actionDispatcher);
 				}
 			} catch (Exception e) {

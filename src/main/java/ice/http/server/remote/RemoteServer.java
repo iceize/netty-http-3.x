@@ -35,13 +35,13 @@ public class RemoteServer extends ServerTemplate {
 
 	@Override
 	protected Class<?>[] getServerComponents() {
-		String basePackage = settings.getExtensions();
+		String extensions = settings.getExtensions();
 		String packageName = this.getClass().getPackage().getName();
 
-		if (basePackage == null) {
+		if (extensions == null) {
 			settings.setExtensions(packageName);
 		} else {
-			settings.setExtensions(basePackage + "," + packageName);
+			settings.setExtensions(extensions + "," + packageName);
 		}
 
 		return new Class<?>[]{RemoteRouter.class, InterceptorManager.class, Dispatcher.class};
