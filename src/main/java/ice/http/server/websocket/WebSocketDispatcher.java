@@ -4,8 +4,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import ice.http.server.*;
+import ice.http.server.Request;
+import ice.http.server.Response;
+import ice.http.server.Settings;
+import ice.http.server.SettingsAware;
 import ice.http.server.action.Action;
 import ice.http.server.action.Interceptor;
 import ice.http.server.action.InterceptorManager;
@@ -13,6 +15,7 @@ import ice.http.server.action.MethodAction;
 import ice.http.server.annotations.*;
 import ice.http.server.annotations.Method.HttpMethod;
 import ice.http.server.binder.BinderManager;
+import ice.http.server.dispatcher.DispatcherUtils;
 import ice.http.server.utils.BeanUtils;
 import ice.http.server.utils.NamedThreadFactory;
 import org.apache.commons.lang.ArrayUtils;
@@ -27,7 +30,6 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.stereotype.Controller;
-import org.springframework.util.CollectionUtils;
 import org.springframework.util.ReflectionUtils;
 
 import java.lang.annotation.Annotation;
@@ -40,7 +42,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.regex.Matcher;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class WebSocketDispatcher implements SettingsAware, ApplicationContextAware, InitializingBean, DisposableBean {
 	private Settings settings;
@@ -48,6 +50,7 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 	private InterceptorManager interceptorManager;
 	private Map<String, Object> controllers;
 	private ExecutorService executorService;
+	private final AtomicBoolean running = new AtomicBoolean(true);
 	private final List<MethodAction> onRequestMethods = Lists.newArrayList();
 	private final ChannelGroup channelGroup = new DefaultChannelGroup(this.getClass().getSimpleName());
 	private static final ObjectMapper MAPPER = new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
@@ -57,7 +60,7 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 		this.settings = settings;
 	}
 
-	Channel registerChannel(String path, Channel channel, Request request) {
+	Channel registerChannel(String path, Channel channel) {
 		final ChannelWrapper channelWrapper = new ChannelWrapper(path, channel);
 		channelGroup.add(channelWrapper);
 		return channelWrapper;
@@ -69,7 +72,7 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 
 	private boolean isBound(String path) {
 		for (Channel channel : channelGroup) {
-			if (channel.isConnected() && (channel instanceof ChannelWrapper)) {
+			if (channel.isConnected() && (channel instanceof ChannelWrapper) && StringUtils.equals(((ChannelWrapper) channel).getPath(), path)) {
 				return true;
 			}
 		}
@@ -99,7 +102,7 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 		return false;
 	}
 
-	public boolean sendMessage(String path, Object message) {
+	private boolean sendMessage(String path, Object message) {
 		boolean sent = false;
 
 		for (Channel channel : channelGroup) {
@@ -114,39 +117,7 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 		return sent;
 	}
 
-	private Map<String, List<String>> getPathVariables(MethodAction methodAction, String requestPath) {
-		String[] paths = StringUtils.split(methodAction.path(), "/");
-		String[] requestPaths = StringUtils.split(requestPath, "/");
-		Map<String, List<String>> pathVariables = Maps.newHashMap();
-
-		for (int i = 0; i < paths.length; i++) {
-			Matcher matcher = Context.PATH_VARIABLE_PATTERN.matcher(paths[i]);
-
-			if (matcher.find()) {
-				pathVariables.put(matcher.group(1), Lists.newArrayList(requestPaths[i]));
-			}
-		}
-
-		return pathVariables;
-	}
-
-	private Object invoke(MethodAction methodAction, Request request, Response response) {
-		if (CollectionUtils.isEmpty(methodAction.parameters())) {
-			return ReflectionUtils.invokeMethod(methodAction.method(), methodAction.bean());
-		}
-
-		List<Object> args = Lists.newArrayList();
-		Map<String, List<String>> requestParams = Maps.newHashMap(request.params);
-		requestParams.putAll(getPathVariables(methodAction, request.path));
-
-		for (Entry<String, Parameter> entry : methodAction.parameters().entrySet()) {
-			args.add(binderManager.bind(request, response, entry.getValue(), requestParams));
-		}
-
-		return ReflectionUtils.invokeMethod(methodAction.method(), methodAction.bean(), args.toArray(new Object[args.size()]));
-	}
-
-	public Object dispatch(ChannelHandlerContext context, Action action, Request request, Response response) {
+	public Object dispatch(Action action, Request request, Response response) {
 		MethodAction methodAction = (MethodAction) action;
 		request.actionMethod = methodAction.method();
 
@@ -154,7 +125,7 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 
 		try {
 			interceptorManager.intercept(methodAction, interceptors.get(Before.class), request, response);
-			Object result = invoke(methodAction, request, response);
+			Object result = DispatcherUtils.invoke(methodAction, request, response, binderManager);
 			interceptorManager.intercept(methodAction, interceptors.get(After.class), request, response);
 			return result;
 		} catch (Exception e) {
@@ -187,7 +158,7 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 					}
 
 					try {
-						Object message = invoke(methodAction, request, null);
+						Object message = DispatcherUtils.invoke(methodAction, request, null, binderManager);
 						sendMessage(request.path, message, channel);
 						Thread.sleep(methodAction.method().getAnnotation(WS.class).delay());
 					} catch (Exception ignored) {
@@ -256,6 +227,10 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 						@Override
 						public void run() {
 							while (true) {
+								if (!running.get()) {
+									break;
+								}
+
 								if (isBound(path)) {
 									Object message = args.isEmpty() ? ReflectionUtils.invokeMethod(method, entry.getValue()) : ReflectionUtils.invokeMethod(method, entry.getValue(), args.toArray(new Object[args.size()]));
 									sendMessage(path, message);
@@ -275,6 +250,8 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 
 	@Override
 	public void destroy() throws Exception {
+		running.set(false);
+
 		if (executorService != null) {
 			executorService.shutdown();
 		}
@@ -287,13 +264,17 @@ public class WebSocketDispatcher implements SettingsAware, ApplicationContextAwa
 		this.interceptorManager = BeanUtils.getBean(settings, applicationContext, InterceptorManager.class);
 	}
 
-	static class ChannelWrapper implements Channel {
+	private static class ChannelWrapper implements Channel {
 		private final String path;
 		private final Channel channel;
 
-		public ChannelWrapper(String path, Channel channel) {
+		ChannelWrapper(String path, Channel channel) {
 			this.path = path;
 			this.channel = channel;
+		}
+
+		public String getPath() {
+			return path;
 		}
 
 		@Override

@@ -1,8 +1,9 @@
 package ice.http.server.dispatcher;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import ice.http.server.*;
+import ice.http.server.Request;
+import ice.http.server.Response;
+import ice.http.server.Settings;
+import ice.http.server.SettingsAware;
 import ice.http.server.action.Action;
 import ice.http.server.action.Interceptor;
 import ice.http.server.action.InterceptorManager;
@@ -16,21 +17,16 @@ import ice.http.server.binder.BinderManager;
 import ice.http.server.utils.BeanUtils;
 import ice.http.server.view.View;
 import ice.http.server.view.ViewResolver;
-import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
-import org.springframework.util.CollectionUtils;
-import org.springframework.util.ReflectionUtils;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.AbstractMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.regex.Matcher;
 
 public class HttpActionDispatcher extends MethodActionDispatcher implements SettingsAware, ApplicationContextAware {
 	private Settings settings;
@@ -46,38 +42,6 @@ public class HttpActionDispatcher extends MethodActionDispatcher implements Sett
 	@Override
 	public Class<? extends Action> assignableFrom() {
 		return MethodAction.class;
-	}
-
-	private Map<String, List<String>> getPathVariables(MethodAction methodAction, String requestPath) {
-		String[] paths = StringUtils.split(methodAction.path(), "/");
-		String[] requestPaths = StringUtils.split(requestPath, "/");
-		Map<String, List<String>> pathVariables = Maps.newHashMap();
-
-		for (int i = 0; i < paths.length; i++) {
-			Matcher matcher = Context.PATH_VARIABLE_PATTERN.matcher(paths[i]);
-
-			if (matcher.find()) {
-				pathVariables.put(matcher.group(1), Lists.newArrayList(requestPaths[i]));
-			}
-		}
-
-		return pathVariables;
-	}
-
-	private Object invoke(MethodAction methodAction, Request request, Response response) {
-		if (CollectionUtils.isEmpty(methodAction.parameters())) {
-			return ReflectionUtils.invokeMethod(methodAction.method(), methodAction.bean());
-		}
-
-		List<Object> args = Lists.newArrayList();
-		Map<String, List<String>> requestParams = Maps.newHashMap(request.params);
-		requestParams.putAll(getPathVariables(methodAction, request.path));
-
-		for (Entry<String, Parameter> entry : methodAction.parameters().entrySet()) {
-			args.add(binderManager.bind(request, response, entry.getValue(), requestParams));
-		}
-
-		return ReflectionUtils.invokeMethod(methodAction.method(), methodAction.bean(), args.toArray(new Object[args.size()]));
 	}
 
 	private Entry<Object, View> getModelAndView(Object result) {
@@ -107,7 +71,7 @@ public class HttpActionDispatcher extends MethodActionDispatcher implements Sett
 
 		try {
 			interceptorManager.intercept(methodAction, interceptors.get(Before.class), request, response);
-			Object result = invoke(methodAction, request, response);
+			Object result = DispatcherUtils.invoke(methodAction, request, response, binderManager);
 			interceptorManager.intercept(methodAction, interceptors.get(After.class), request, response);
 			return getModelAndView(result, request.method, methodAction.method());
 		} catch (Throwable e) {

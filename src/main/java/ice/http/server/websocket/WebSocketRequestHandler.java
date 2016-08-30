@@ -49,7 +49,7 @@ public class WebSocketRequestHandler extends SimpleChannelUpstreamHandler implem
 			request.method = Method.HttpMethod.WS;
 			request.args.put("handshaker", webSocketServerHandshaker);
 
-			dispatcher.registerCallback(router.route(request), dispatcher.registerChannel(path, context.getChannel(), request), request);
+			dispatcher.registerCallback(router.route(request), dispatcher.registerChannel(path, context.getChannel()), request);
 
 			context.getChannel().setAttachment(request);
 			context.getPipeline().addBefore("handler", "aggregator", new HttpChunkAggregator(settings.getWebSocketMaxContentLength()));
@@ -85,7 +85,7 @@ public class WebSocketRequestHandler extends SimpleChannelUpstreamHandler implem
 		Response response = new Response();
 
 		Action action = router.route(request);
-		Object value = dispatcher.dispatch(context, action, request, response);
+		Object value = dispatcher.dispatch(action, request, response);
 		context.getChannel().write(new TextWebSocketFrame(MAPPER.writeValueAsString(value)));
 	}
 
