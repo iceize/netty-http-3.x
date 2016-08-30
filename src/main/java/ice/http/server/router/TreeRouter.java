@@ -8,6 +8,7 @@ import ice.http.server.action.InterceptorManager;
 import ice.http.server.action.MethodAction;
 import ice.http.server.annotations.Method.HttpMethod;
 import ice.http.server.annotations.Param;
+import ice.http.server.annotations.Route;
 import ice.http.server.utils.BeanUtils;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang.StringUtils;
@@ -128,7 +129,15 @@ public class TreeRouter implements SettingsAware, Router, PathExposure, Initiali
 		Map<Class<? extends Annotation>, HttpMethod> mvcAnnotations = Context.getMvcAnnotations();
 
 		for (Entry<String, Object> entry : controllers.entrySet()) {
-			Method[] methods = entry.getValue().getClass().getDeclaredMethods();
+			String prefix = "";
+			Class<?> controllerClass = entry.getValue().getClass();
+			Route route = controllerClass.getAnnotation(Route.class);
+
+			if (route != null && StringUtils.isNotBlank(route.value())) {
+				prefix = route.value();
+			}
+
+			Method[] methods = controllerClass.getDeclaredMethods();
 
 			for (Method method : methods) {
 				if (!Modifier.isPublic(method.getModifiers())) {
@@ -146,14 +155,15 @@ public class TreeRouter implements SettingsAware, Router, PathExposure, Initiali
 					Tree tree = routes.get(httpMethod);
 
 					if (tree == null) {
-						tree = new Tree("/", null);
+						tree = new Tree(Context.PATH_DELIMITER, null);
 					}
 
 					Map<String, Object> attributes = AnnotationUtils.getAnnotationAttributes(annotation);
 					String[] paths = (String[]) attributes.get("value");
 					Map<String, Parameter> parameters = getParameters(method);
 
-					for (String path : paths) {
+					for (String path0 : paths) {
+						String path = prefix + (path0.startsWith(Context.PATH_DELIMITER) ? path0 : Context.PATH_DELIMITER + path0);
 						MethodAction methodAction = new MethodAction(entry.getValue(), method, httpMethod, path, parameters);
 						interceptorManager.addInterceptors(methodAction);
 						Tree.generate(tree, path.substring(1), methodAction);
@@ -183,9 +193,10 @@ public class TreeRouter implements SettingsAware, Router, PathExposure, Initiali
 	}
 
 	static class Tree {
-		final Map<String, Tree> children = Maps.newLinkedHashMap();
 		String name;
 		Action action;
+		final Map<String, Tree> children = Maps.newLinkedHashMap();
+		private static final String DEFAULT_PATH = "*";
 
 		Tree(String name, Action action) {
 			this.name = name;
@@ -193,7 +204,7 @@ public class TreeRouter implements SettingsAware, Router, PathExposure, Initiali
 		}
 
 		static void generate(Tree tree, String path, Action action) {
-			int index = path.indexOf("/");
+			int index = path.indexOf(Context.PATH_DELIMITER);
 			String name = index < 0 ? path : path.substring(0, index);
 
 			if ("".equals(name)) {
@@ -202,7 +213,7 @@ public class TreeRouter implements SettingsAware, Router, PathExposure, Initiali
 			}
 
 			if (name.startsWith("{") && name.endsWith("}")) {
-				name = "*";
+				name = DEFAULT_PATH;
 			}
 
 			Tree childTree = tree.children.get(name);
@@ -240,11 +251,11 @@ public class TreeRouter implements SettingsAware, Router, PathExposure, Initiali
 				return null;
 			}
 
-			String[] splits = path.split("/", 2);
+			String[] splits = path.split(Context.PATH_DELIMITER, 2);
 			Tree subtree = tree.children.get(splits[0]);
 
 			if (subtree == null) {
-				subtree = tree.children.get("*");
+				subtree = tree.children.get(DEFAULT_PATH);
 			}
 
 			if (splits.length < 2) {

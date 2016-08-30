@@ -46,14 +46,14 @@ public class StaticRouter implements Router, InitializingBean {
 		Entry<String, String> staticEntry = null;
 
 		for (Entry<String, String> entry : staticRouteMap.entrySet()) {
-			if (entry.getKey().endsWith("/")) { // dir
+			if (entry.getKey().endsWith(Context.PATH_DELIMITER)) { // dir
 				if (path.startsWith(entry.getKey())) {
 					directory = true;
 					staticEntry = entry;
 					break;
 				}
 
-				if ((path + "/").equals(entry.getKey())) {
+				if ((path + Context.PATH_DELIMITER).equals(entry.getKey())) {
 					return redirect(path);
 				}
 			} else {
@@ -73,8 +73,8 @@ public class StaticRouter implements Router, InitializingBean {
 		if (directory) {
 			sb.append(staticEntry.getValue());
 
-			if (!staticEntry.getValue().endsWith("/")) {
-				sb.append("/");
+			if (!staticEntry.getValue().endsWith(Context.PATH_DELIMITER)) {
+				sb.append(Context.PATH_DELIMITER);
 			}
 
 			sb.append(path.substring(staticEntry.getKey().length()));
@@ -92,7 +92,7 @@ public class StaticRouter implements Router, InitializingBean {
 				return null;
 			}
 
-			if (staticPath.endsWith("/")) {
+			if (staticPath.endsWith(Context.PATH_DELIMITER)) {
 				staticPath += DEFAULT_INDEX_FILE;
 			} else {
 				try {
@@ -227,7 +227,7 @@ public class StaticRouter implements Router, InitializingBean {
 				}
 
 				try {
-					map.put(path, "/" + splits[2].substring("staticDir:".length()));
+					map.put(path, Context.PATH_DELIMITER + splits[2].substring("staticDir:".length()));
 				} catch (Exception ignored) {
 				}
 

@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 public final class Context {
 	public static final String DEFAULT_ENCODING = "UTF-8";
 	public static final Charset DEFAULT_CHARSET = Charset.forName(DEFAULT_ENCODING);
+	public static final String PATH_DELIMITER = "/";
 	public static final Pattern PATH_VARIABLE_PATTERN = Pattern.compile("\\{([0-9a-zA-Z_-]+)\\}");
 	private static final Map<String, String> MIME_TYPES = Maps.newHashMap();
 	private static final Map<Class<? extends Annotation>, Method.HttpMethod> MVC_ANNOTATIONS = Maps.newLinkedHashMap();

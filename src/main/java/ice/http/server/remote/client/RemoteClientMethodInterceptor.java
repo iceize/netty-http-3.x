@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import ice.http.server.Context;
 import ice.http.server.remote.RemoteHeaderNames;
 import ice.http.server.remote.RemoteTypeReference;
 import ice.http.server.remote.annotations.Name;
@@ -105,7 +106,7 @@ public class RemoteClientMethodInterceptor implements MethodInterceptor {
 		Type returnType = invocation.getMethod().getGenericReturnType();
 
 		try {
-			httpPost = new HttpPost(serverAddress + "/" + serviceName + "/" + invocation.getMethod().getName());
+			httpPost = new HttpPost(serverAddress + Context.PATH_DELIMITER + serviceName + Context.PATH_DELIMITER + invocation.getMethod().getName());
 			StringEntity entity = new StringEntity(MAPPER.writeValueAsString(request), ContentType.APPLICATION_JSON);
 			httpPost.setEntity(entity);
 

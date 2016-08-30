@@ -5,10 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import ice.http.server.Parameter;
-import ice.http.server.Request;
-import ice.http.server.Settings;
-import ice.http.server.SettingsAware;
+import ice.http.server.*;
 import ice.http.server.action.Action;
 import ice.http.server.action.InterceptorManager;
 import ice.http.server.action.MethodAction;
@@ -268,7 +265,7 @@ public class RemoteRouter implements SettingsAware, Router, InitializingBean, Ap
 					continue;
 				}
 
-				String path = "/" + prefix + "/" + (expose == null || StringUtils.isBlank(expose.value()) ? method.getName() : expose.value());
+				String path = Context.PATH_DELIMITER + prefix + Context.PATH_DELIMITER + (expose == null || StringUtils.isBlank(expose.value()) ? method.getName() : expose.value());
 
 				Class<?>[] parameterTypes = method.getParameterTypes();
 				Type[] genericParameterTypes = method.getGenericParameterTypes();

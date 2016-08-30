@@ -55,7 +55,7 @@ public class StaticActionDispatcher implements SettingsAware, ActionDispatcher, 
 
 		if (staticAction.contents() == null) {
 			response.status = HttpResponseStatus.MOVED_PERMANENTLY;
-			response.headers.put(HttpHeaders.Names.LOCATION, new Header(HttpHeaders.Names.LOCATION, staticAction.path() + "/"));
+			response.headers.put(HttpHeaders.Names.LOCATION, new Header(HttpHeaders.Names.LOCATION, staticAction.path() + Context.PATH_DELIMITER));
 		}
 
 		if (!settings.isCache()) {

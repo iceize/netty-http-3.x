@@ -22,8 +22,8 @@ public final class DispatcherUtils {
 	}
 
 	public static Map<String, List<String>> getPathVariables(MethodAction methodAction, String requestPath) {
-		String[] paths = StringUtils.split(methodAction.path(), "/");
-		String[] requestPaths = StringUtils.split(requestPath, "/");
+		String[] paths = StringUtils.split(methodAction.path(), Context.PATH_DELIMITER);
+		String[] requestPaths = StringUtils.split(requestPath, Context.PATH_DELIMITER);
 		Map<String, List<String>> pathVariables = Maps.newHashMap();
 
 		for (int i = 0; i < paths.length; i++) {
