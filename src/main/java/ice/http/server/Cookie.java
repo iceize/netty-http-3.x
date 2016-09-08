@@ -18,6 +18,8 @@ public class Cookie implements Comparable<Cookie> {
 	public final String domain;
 	public final String path;
 	public final int maxAge;
+	public boolean secure;
+	public boolean httpOnly;
 
 	public Cookie(String name, String value) {
 		this(name, value, null, null);
@@ -59,11 +61,23 @@ public class Cookie implements Comparable<Cookie> {
 			add(sb, CookieHeaderNames.DOMAIN, domain);
 		}
 
+		if (secure) {
+			add(sb, CookieHeaderNames.SECURE);
+		}
+
+		if (httpOnly) {
+			add(sb, CookieHeaderNames.HTTPONLY);
+		}
+
 		if (sb.length() > 0) {
 			sb.setLength(sb.length() - 2);
 		}
 
 		return sb.toString();
+	}
+
+	private void add(StringBuilder sb, String name) {
+		sb.append(name).append((char) HttpConstants.SEMICOLON).append((char) HttpConstants.SP);
 	}
 
 	private void add(StringBuilder sb, String name, Object value) {
